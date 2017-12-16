@@ -24,9 +24,9 @@ def doLeds(strip, data):
 
 def main():
     # Create NeoPixel object with appropriate configuration.
-	strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
+    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
 	# Intialize the library (must be called once before other functions).
-	strip.begin()
+    strip.begin()
 
     host = '192.168.0.26'
     port = 12345                   # The same port as used by the server
@@ -35,9 +35,8 @@ def main():
 
     connected = True;
     while(connected):
-
-        data = "led";
-        s.send(data.encode());
+        data = "led"
+        s.send(data.encode())
         data = s.recv(1024).decode().split(",")
         data = [int(e) for e in data]
         doLeds(strip, data)
