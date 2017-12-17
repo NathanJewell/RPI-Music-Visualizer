@@ -46,7 +46,7 @@ def toRGB(val):
             return 255;
         else:
             return 255-((v-(5*c))*6)
-    print(Color(R(val), G(val), B(val))
+    print(Color(R(val), G(val), B(val)))
     return Color(R(val), G(val), B(val))
 
 def doLeds(strip, data):
