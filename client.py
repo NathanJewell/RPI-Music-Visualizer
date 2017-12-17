@@ -49,8 +49,8 @@ def toRGB(val):
     return Color(R(val), G(val), B(val))
 
 def doLeds(strip, data):
-    for i in range(0, len(data)):
-        strip.setPixelColor(i, toRGB(data[i]))
+    for i in range(0, len(data)/3):
+        strip.setPixelColor(i, Color(data[i*3], data[i*3+1], data[i*3+2]))
     strip.show();
 
 def main():

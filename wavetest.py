@@ -28,7 +28,7 @@ def soundplot(stream):
     data = np.fromstring(stream.read(CHUNK), np.int16)
     fs = RATE
 
-    BARS = 60
+    BARS = 16
     BAR_HEIGHT = 255
     LINE_WIDTH = 5
 
@@ -75,6 +75,24 @@ def soundplot(stream):
     #im.save("images/" + str(time.time()) + ".png")
     return final;
 
+def colorize(data):
+    def sigmoid(v): #v is between 0 and 1
+        return 1/(1+pow(2.71, -1*v));
+    data = [v/255 for v in data]    #normalize
+    colors = []
+    r = 255/len(data);
+    for(i=0; i<len(data); i++): #bass is bluer, high is redder
+        ratio = (.1+i*r)/(len(data)*r) #.1/255 to 255/255
+        intensity = sigmoid(data[i])
+        colors[i].append((255*ratio)*intensity)
+        colors[i].append(0)
+        colors[i].append((255/ratio)*intensity)
+
+
+    return colors
+
+
+def onmessage()
 if __name__=="__main__":
 
     list_devices();
@@ -95,9 +113,10 @@ if __name__=="__main__":
         data = conn.recv(1024).decode();
 
         print("Sending LED Info")
-        data = soundplot(stream)
-        data = ",".join(str(int(e)) for e in data)
-        conn.send(data.encode())
+        chart = soundplot(stream)
+        response = colorize(chart)
+        response = ",".join(str(int(e)) for e in data)
+        conn.send(response.encode())
 
         if data == "END":
             conn.close()
