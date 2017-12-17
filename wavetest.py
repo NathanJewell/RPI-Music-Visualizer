@@ -72,7 +72,7 @@ def soundplot(stream):
         current_x = current_x + LINE_WIDTH
 
 
-    im.save("images/" + str(time.time()) + ".png")
+    #im.save("images/" + str(time.time()) + ".png")
     return final;
 
 if __name__=="__main__":
