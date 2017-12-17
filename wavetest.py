@@ -23,22 +23,30 @@ def list_devices():
 RATE = 44100
 CHUNK = int(RATE/20) # RATE / number of updates per second
 
+BARS = 46
+BAR_HEIGHT = 255
+LINE_WIDTH = 5
+line_ratio_max = 0
+line_ratio_avg =
+line_ratio = 0
+line_ratios = []
+
+
 def soundplot(stream):
     t1=time.time()
     data = np.fromstring(stream.read(CHUNK), np.int16)
     fs = RATE
 
-    BARS = 16
-    BAR_HEIGHT = 255
-    LINE_WIDTH = 5
-
     length = len(data)
     RATIO = length/BARS
+    highest_line = 0
+    global line_ratio, line_ratios, line_ratio_max, line_ratio_avg
 
     count = 0
     maximum_item = 0
     max_array = []
-    highest_line = 0
+
+
 
     for d in data:
     	if count < RATIO:
@@ -55,10 +63,17 @@ def soundplot(stream):
     		maximum_item = 0
     		count = 1
 
-    line_ratio = highest_line/BAR_HEIGHT
+    current_line_ratio = highest_line/BAR_HEIGHT;
+    line_ratios.append(line_ratio);
+    if(len(line_ratios) > 100):
+        line_ratios.pop(0)
+    line_ratio_avg = sum(line_ratios)/len(line_ratios)
+    if (current_line_ratio > line_ratio_max):
+        line_ratio_max = highest_line/BAR_HEIGHT
+    line_ratio = (line_ratio_max + line_ratio_avg)/2
 
-    im = Image.new('RGBA', (BARS * LINE_WIDTH, BAR_HEIGHT), (255, 255, 255, 1))
-    draw = ImageDraw.Draw(im)
+    #im = Image.new('RGBA', (BARS * LINE_WIDTH, BAR_HEIGHT), (255, 255, 255, 1))
+    #draw = ImageDraw.Draw(im)
 
     current_x = 1
     final = [];
@@ -67,7 +82,7 @@ def soundplot(stream):
         final.append(item_height)
 
         current_y = (BAR_HEIGHT - item_height)/2
-        draw.line((current_x, current_y, current_x, current_y + item_height), fill=(169, 171, 172), width=4)
+        #draw.line((current_x, current_y, current_x, current_y + item_height), fill=(169, 171, 172), width=4)
 
         current_x = current_x + LINE_WIDTH
 
@@ -81,18 +96,21 @@ def colorize(data):
     data = [v/255 for v in data]    #normalize
     colors = []
     r = 255/len(data);
-    for(i=0; i<len(data); i++): #bass is bluer, high is redder
-        ratio = (.1+i*r)/(len(data)*r) #.1/255 to 255/255
-        intensity = sigmoid(data[i])
-        colors[i].append((255*ratio)*intensity)
-        colors[i].append(0)
-        colors[i].append((255/ratio)*intensity)
+    for i in range(len(data)): #bass is bluer, high is redder
+        ratio = ((1+i)*r)/(len(data)*r) #.1/255 to 255/255
+
+        intensity = pow(data[i], .5)
+        r = (255*intensity)*intensity)
+        g = 0)
+        b = (255-255*intensity)*intensity)
+
+        colors.append(r)
+        colors.append(g)
+        colors.appen(b)
 
 
     return colors
 
-
-def onmessage()
 if __name__=="__main__":
 
     list_devices();
@@ -115,7 +133,7 @@ if __name__=="__main__":
         print("Sending LED Info")
         chart = soundplot(stream)
         response = colorize(chart)
-        response = ",".join(str(int(e)) for e in data)
+        response = ",".join(str(int(e)) for e in response)
         conn.send(response.encode())
 
         if data == "END":
