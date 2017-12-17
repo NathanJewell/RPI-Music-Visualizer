@@ -28,7 +28,7 @@ def soundplot(stream):
     data = np.fromstring(stream.read(CHUNK), np.int16)
     fs = RATE
 
-    BARS = 15
+    BARS = 60
     BAR_HEIGHT = 255
     LINE_WIDTH = 5
 
@@ -72,7 +72,7 @@ def soundplot(stream):
         current_x = current_x + LINE_WIDTH
 
 
-    #im.save("images/" + str(time.time()) + ".png")
+    im.save("images/" + str(time.time()) + ".png")
     return final;
 
 if __name__=="__main__":
