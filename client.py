@@ -20,29 +20,29 @@ def toRGB(val):
     def R(v):
         if(v < (c)):
             return 0
-        elif(v >= (c) && v <= (2*c)):
+        elif(v >= (c) and v <= (2*c)):
             return 255-((v-c)*6)
-        elif(v > (2*c) && v < (4*c)):
+        elif(v > (2*c) and v < (4*c)):
             return 0;
-        elif(v > (4*c) && v <= (5*c)):
+        elif(v > (4*c) and v <= (5*c)):
             return (v-(4*c)*6);
         else:
             return 255;
     def G(v):
         if(v < (c)):
             return ((v-c)*6)
-        elif(v >= (c) && v <= (3*c)):
+        elif(v >= (c) and v <= (3*c)):
             return 255
-        elif(v > (3*c) && v < (4*c)):
+        elif(v > (3*c) and v < (4*c)):
             return 255-((v-(3*c))*6)
         else:
             return 0
     def B(v):
         if(v < (2*c)):
             return 0
-        elif(v >= (2*c) && v <= (3*c)):
+        elif(v >= (2*c) and v <= (3*c)):
             return (v-(2*c))*6
-        elif(v > (3*c) && v < (5*c)):
+        elif(v > (3*c) and v < (5*c)):
             return 255;
         else:
             return 255-((v-(5*c))*6)
