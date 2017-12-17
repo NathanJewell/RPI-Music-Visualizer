@@ -21,7 +21,7 @@ def toRGB(val):
         if(v < (c)):
             return 0
         elif(v >= (c) and v <= (2*c)):
-            return 255-((v-c)*6)
+            return 255-((v-(c*2))*6)
         elif(v > (2*c) and v < (4*c)):
             return 0;
         elif(v > (4*c) and v <= (5*c)):
@@ -34,7 +34,7 @@ def toRGB(val):
         elif(v >= (c) and v <= (3*c)):
             return 255
         elif(v > (3*c) and v < (4*c)):
-            return 255-((v-(3*c))*6)
+            return 255-((v-(4*c))*6)
         else:
             return 0
     def B(v):
@@ -45,8 +45,7 @@ def toRGB(val):
         elif(v > (3*c) and v < (5*c)):
             return 255;
         else:
-            return 255-((v-(5*c))*6)
-    print(Color(R(val), G(val), B(val)))
+            return 255-((v-(6*c))*6)
     return Color(R(val), G(val), B(val))
 
 def doLeds(strip, data):
