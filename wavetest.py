@@ -23,7 +23,7 @@ def list_devices():
 RATE = 44100
 CHUNK = int(RATE/20) # RATE / number of updates per second
 
-BARS = 46
+BARS = 254
 BAR_HEIGHT = 255
 LINE_WIDTH = 5
 line_ratio_max = 0
@@ -47,6 +47,69 @@ def getFreq(data): #https://stackoverflow.com/questions/2648151/python-frequency
 
     return thefreq
 
+def soundplott(stream):
+    t1=time.time()
+    data = np.fromstring(stream.read(CHUNK), np.int16)
+    fs = RATE
+
+    length = len(data)
+    RATIO = length/BARS
+    highest_line = 0
+    global line_ratio, line_ratios, line_ratio_max, line_ratio_avg
+
+    count = 0
+    maximum_item = 0
+    max_array = []
+
+    maxi = 0;
+    for d in data:
+
+        if count < RATIO:
+            count = count + 1
+
+            if abs(d) > maximum_item:
+                maximum_item = abs(d)
+        else:
+            max_array.append(maximum_item)
+
+            if maximum_item > highest_line:
+                highest_line = maximum_item
+                maxi = d
+
+            maximum_item = 0
+            count = 1
+
+    current_line_ratio = highest_line/BAR_HEIGHT;
+    line_ratios.append(current_line_ratio)
+    if(len(line_ratios) > 30):
+        line_ratios.pop(0)
+
+
+    if (current_line_ratio > line_ratio_max):
+        line_ratio_max = highest_line/BAR_HEIGHT
+
+    line_ratio_avg = sum(line_ratios)/len(line_ratios)
+    line_ratio = max((line_ratio_max+2*line_ratio_avg)/3, current_line_ratio)
+
+    #im = Image.new('RGBA', (BARS * LINE_WIDTH, BAR_HEIGHT), (255, 255, 255, 1))
+    #draw = ImageDraw.Draw(im)
+
+    current_x = 1
+    final = [];
+    for item in max_array:
+        item_height = item/line_ratio
+        final.append(item_height)
+
+        current_y = (BAR_HEIGHT - item_height)/2
+        #draw.line((current_x, current_y, current_x, current_y + item_height), fill=(169, 171, 172), width=4)
+
+        current_x = current_x + LINE_WIDTH
+
+    frequency = getFreq(data)
+
+    #im.save("images/" + str(time.time()) + ".png")
+    return (final, frequency, maxi);
+
 def soundplot(stream):
     t1=time.time()
     data = np.fromstring(stream.read(CHUNK), np.int16)
@@ -62,7 +125,6 @@ def soundplot(stream):
     max_array = []
 
 
-    frequency = getFreq(data)
     maxi = 0;
     for i in range(len(data)):
         d = data[i]
@@ -70,14 +132,14 @@ def soundplot(stream):
         if count < RATIO:
             count = count + 1
 
-        if abs(d) > maximum_item:
-            maximum_item = abs(d)
+            if abs(d) > maximum_item:
+                maximum_item = abs(d)
         else:
             max_array.append(maximum_item)
 
             if maximum_item > highest_line:
                 highest_line = maximum_item
-                maxi = i
+                maxi = len(max_array)
 
             maximum_item = 0
             count = 1
@@ -107,6 +169,7 @@ def soundplot(stream):
 
         current_x = current_x + LINE_WIDTH
 
+    frequency = getFreq(data)
 
     #im.save("images/" + str(time.time()) + ".png")
     return (final, frequency, maxi);
@@ -114,25 +177,35 @@ def soundplot(stream):
 def colorize(d):
     data = d[0]
     frequency = d[1]
+    #print("f: " + str(frequency))
     maxi = d[2]
+    #print("m: " + str(maxi))
+
+
     def sigmoid(v): #v is between 0 and 1
-        return 255/(1+pow(2.718, -.05*(v-125)));
+        return 255/(1+pow(2.718, -.05*(v-125)))
     def invsigmoid(v):
-        return -255/(1+pow(2.718, -.05*(v-125)))+255;
+        return -255/(1+pow(2.718, -.05*(v-125)))+255
+
     data = [v/255 for v in data]    #normalize
     colors = []
     lenratio = 255/len(data);
-    colorratio = maxi*lenratio
+    colorratio = lenratio/len(data)
+    freqratio = (np.clip(frequency, 50, 1000)-50)/950 #clamp and normalize
     for i in range(len(data)): #bass is bluer, high is redder
 
         intensity = pow(data[i], 1)
-        r = colorratio*intensity
-        g = colorratio*intensity
-        b = 0#sigmoid((255*intensity))
-
+        r = sigmoid(255*intensity)*intensity#freqratio*255
+        g = 0#colorratio*255
+        b = invsigmoid(255*intensity)*intensity
+        if(i==maxi):
+            g = 255
+            b=0
+            r=0
         colors.append(r)
         colors.append(g)
         colors.append(b)
+
 
     return colors
 
@@ -155,14 +228,11 @@ if __name__=="__main__":
     while True:
         data = conn.recv(1024).decode();
 
-        #print("Sending LED Info")
         chart = soundplot(stream)
         response = colorize(chart)
         response = ",".join(str(int(e)) for e in response)
-        print(response)
         conn.send(response.encode())
-
-
+        print("sent")
         if data == "END":
             conn.close()
 
