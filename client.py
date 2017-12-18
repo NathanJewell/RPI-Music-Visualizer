@@ -1,4 +1,5 @@
-import socket
+import websocket
+import thread
 
 import time
 from neopixel import *
@@ -54,31 +55,35 @@ def doLeds(strip, data):
     strip.show();
 
 def main():
+
     # Create NeoPixel object with appropriate configuration.
     strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
 	# Intialize the library (must be called once before other functions).
     strip.begin()
 
-    host = '192.168.0.26'
-    port = 12345                   # The same port as used by the server
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
+    HOST = '192.168.0.26'
+    PORT = 12345                   # The same port as used by the server
 
-    connected = True;
-    while(connected):
-        data = "led"
-        s.send(data.encode())
-        data = s.recv(1024).decode().split(",")
-        for i in range(len(data)):
-            try:
-                data[i] = min(int(data[i], 255)
-            except ValueError:
-                data[i] = 0
+    def message(ws, message):
+        #all messages larger than 20 characters will be interpreted as led data
+        if(len(message) > 20):
+            data = [int(e) for e in message.split(",")]
+            doLeds(strip, data)
 
-        #data = [int(e) for e in data]
-        doLeds(strip, data)
-        if data == "END":
-            s.close()
+    def error(ws, error):
+        print(error)
+
+    def close(ws):
+        print("Connection Close")
+
+    def opener(ws):
+        ws.send("sendLEDS") #tell webserver to send led info
+
+    ws = websocket.WebSocketApp(HOST, message, error, close)
+    ws.on_open = opener
+    ws.run_forever()
+
+
 
 if __name__ == '__main__':
     main();

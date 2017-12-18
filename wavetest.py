@@ -2,12 +2,38 @@ import pyaudio
 import numpy as np
 import pylab
 import time
+import colorsys
 
-from matplotlib import pyplot as plot
-from PIL import Image, ImageDraw
 import os
+import logging
+#pip install git+https://github.com/Pithikos/python-websocket-server
+from websocket_server import WebsocketServer
+import thread
 
-import socket
+#web configs
+HOST = '192.168.0.26'        # Symbolic name meaning all available interfaces
+PORT = 12345     # Arbitrary non-privileged port
+
+
+#audio processing configs
+RATE = 44100
+CHUNK = int(RATE/20) # RATE / number of updates per second
+
+BARS = 240
+BAR_HEIGHT = 255
+LINE_WIDTH = 5
+line_ratio_max = 0
+line_ratio_avg = 0
+line_ratio = 0
+line_ratios = []
+
+LOW = 200
+MID = 1500
+HIGH = 2200
+
+LOWP = int(LOW/HIGH * BARS)
+MIDP = int(MID/HIGH * BARS)
+HIGHP = BARS
 
 def list_devices():
     # List all audio input devices
@@ -19,17 +45,6 @@ def list_devices():
         if dev['maxInputChannels'] > 0:
             print(str(i)+'. '+dev['name'])
         i += 1
-
-RATE = 44100
-CHUNK = int(RATE/20) # RATE / number of updates per second
-
-BARS = 254
-BAR_HEIGHT = 255
-LINE_WIDTH = 5
-line_ratio_max = 0
-line_ratio_avg = 0
-line_ratio = 0
-line_ratios = []
 
 def getFreq(data): #https://stackoverflow.com/questions/2648151/python-frequency-detection
     # Take the fft and square each value
@@ -47,68 +62,7 @@ def getFreq(data): #https://stackoverflow.com/questions/2648151/python-frequency
 
     return thefreq
 
-def soundplott(stream):
-    t1=time.time()
-    data = np.fromstring(stream.read(CHUNK), np.int16)
-    fs = RATE
 
-    length = len(data)
-    RATIO = length/BARS
-    highest_line = 0
-    global line_ratio, line_ratios, line_ratio_max, line_ratio_avg
-
-    count = 0
-    maximum_item = 0
-    max_array = []
-
-    maxi = 0;
-    for d in data:
-
-        if count < RATIO:
-            count = count + 1
-
-            if abs(d) > maximum_item:
-                maximum_item = abs(d)
-        else:
-            max_array.append(maximum_item)
-
-            if maximum_item > highest_line:
-                highest_line = maximum_item
-                maxi = d
-
-            maximum_item = 0
-            count = 1
-
-    current_line_ratio = highest_line/BAR_HEIGHT;
-    line_ratios.append(current_line_ratio)
-    if(len(line_ratios) > 30):
-        line_ratios.pop(0)
-
-
-    if (current_line_ratio > line_ratio_max):
-        line_ratio_max = highest_line/BAR_HEIGHT
-
-    line_ratio_avg = sum(line_ratios)/len(line_ratios)
-    line_ratio = max((line_ratio_max+2*line_ratio_avg)/3, current_line_ratio)
-
-    #im = Image.new('RGBA', (BARS * LINE_WIDTH, BAR_HEIGHT), (255, 255, 255, 1))
-    #draw = ImageDraw.Draw(im)
-
-    current_x = 1
-    final = [];
-    for item in max_array:
-        item_height = item/line_ratio
-        final.append(item_height)
-
-        current_y = (BAR_HEIGHT - item_height)/2
-        #draw.line((current_x, current_y, current_x, current_y + item_height), fill=(169, 171, 172), width=4)
-
-        current_x = current_x + LINE_WIDTH
-
-    frequency = getFreq(data)
-
-    #im.save("images/" + str(time.time()) + ".png")
-    return (final, frequency, maxi);
 
 def soundplot(stream):
     t1=time.time()
@@ -124,7 +78,6 @@ def soundplot(stream):
     maximum_item = 0
     max_array = []
 
-    print(len(data))
     maxi = 0;
     for i in range(len(data)):
         d = data[i]
@@ -139,7 +92,7 @@ def soundplot(stream):
 
             if maximum_item > highest_line:
                 highest_line = maximum_item
-                maxi = len(max_array)
+                maxi = i
 
             maximum_item = 0
             count = 1
@@ -164,46 +117,81 @@ def soundplot(stream):
         item_height = item/line_ratio
         final.append(item_height)
 
-        current_y = (BAR_HEIGHT - item_height)/2
-        #draw.line((current_x, current_y, current_x, current_y + item_height), fill=(169, 171, 172), width=4)
+    lowf = data[:LOW]
+    midf = data[LOW:MID]
+    highf = data[MID:HIGH]
 
-        current_x = current_x + LINE_WIDTH
+    freqs = (getFreq(lowf)/LOW, getFreq(midf)/(MID-LOW), getFreq(highf)/(HIGH-MID)) #normalized relative frequencies
 
-    frequency = getFreq(data)
+    low = final[:LOWP]
+    mid = final[LOWP:MIDP]
+    high = final[MIDP:HIGHP]
 
-    #im.save("images/" + str(time.time()) + ".png")
-    return (final, frequency, maxi);
+    amps = (sum(low)/len(low), sum(mid)/len(mid), sum(high)/len(high))
+    return (final, freqs, amps, getFreq(data));
+
+last = False;
 
 def colorize(d):
+    global last
     data = d[0]
-    frequency = d[1]
+    freqs = d[1]
     #print("f: " + str(frequency))
-    maxi = d[2]
-    #print("m: " + str(maxi))
+    amps = d[2]
+    frequency = d[3]
 
+    #print("m: " + str(maxi))
+    freqcolors = ((50, 0, 0), (100, 0, 0), (100, 0, 0)) #low, mid, high
+    basecolor =  (0, 0, 0)
+    smoothing = 0
 
     def sigmoid(v): #v is between 0 and 1
-        return 255/(1+pow(2.718, -.05*(v-125)))
+        return 1/(1+pow(2.718, -.2*(v-.5)))
     def invsigmoid(v):
-        return -255/(1+pow(2.718, -.05*(v-125)))+255
+        return -1/(1+pow(2.718, -.2*(v-.5)))+1
+
+    def hsv(s):
+        rgb = colorsys.hsv_to_rgb(s, 1, 1)
+        return (rgb[0] * 255,
+        rgb[1] * 255,
+        rgb[2] * 255)
 
     data = [v/255 for v in data]    #normalize
     colors = []
-    lenratio = 255/len(data);
-    colorratio = lenratio/len(data)
-    freqratio = (np.clip(frequency, 50, 1000)-50)/950 #clamp and normalize
+    freqratio = (np.clip(int(frequency), 20, 2000)-20)/1980 #clamp and normalize
+
+    if(last):
+        basecolor = (50, 255, 255)
+        time.sleep(.04)
+    last = not last
+
+    #basecolor = hsv(freqratio)
     for i in range(0, len(data)): #bass is bluer, high is redder
 
-        intensity = pow(data[i], 1)
-        r = sigmoid(255*intensity)*intensity#freqratio*255
-        g = 0#colorratio*255
-        b = invsigmoid(255*intensity)*intensity
-        #if(i==maxi):
-
+        intensity = 1#(pow(data[i], 1) + .5*smoothing)/(smoothing+1)
+        r = basecolor[0]*intensity#freqratio*255
+        g = basecolor[1]*intensity#colorratio*255
+        b = basecolor[2]*intensity
 
         colors.append(r)
         colors.append(g)
         colors.append(b)
+
+
+    def depression(p, s, c, m=1): #position and size and color
+        p = int(p)
+        s = int(s)
+        for i in range(p-s, p+s):
+            if(i > 0 and i*3 < len(colors)):
+                #r = abs(p-i)/s
+                d=1 #decay
+                colors[i*3] +=  c[0]*d*m
+                colors[i*3 + 1] += c[1]*d*m
+                colors[i*3 + 2] += c[2]*d*m
+    #depression(BARS/3, int((sum(data)/len(data))*(BARS//2)), (0, 0, 100), (sum(data)/len(data)));
+    #depression((BARS*freqs[0]), 20, freqcolors[0], amps[0]/255) #low one fourth
+    #depression((BARS*freqs[1])/3 + BARS/3, 10, freqcolors[1], amps[1]/255) #mid two fourths
+    #depression((BARS*freqs[2])/3 + (2*BARS)/3, 5, freqcolors[2], amps[2]/255) #high one fourth
 
     return colors
 
@@ -214,25 +202,33 @@ if __name__=="__main__":
     stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
                   frames_per_buffer=CHUNK)
 
-    host = '192.168.0.26'        # Symbolic name meaning all available interfaces
-    port = 12345     # Arbitrary non-privileged port
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((host, port))
+    lighters = []
+    def clientJoin(client, server):
+        pass
 
-    print(host , port)
-    s.listen(1)
-    conn, addr = s.accept()
-    print('Connected by', addr)
+    def clientLeave(client, server):
+        pass
+
+    def message(client, server, message):
+        if message == "ping":
+            server.send_message(client, "pong")
+        elif message == "sendLEDS":
+            lighters.append(client)
+            server.send_message(client, "sending LEDS")
+
+    s = WebsocketServer(PORT, host=HOST, loglevel=loggin.INFO)
+    s.set_fn_new_client(clientJoin)
+    s.set_fn_client_left(clientLeave)
+    s.set_fn_message_received(message)
+    s.run_forever()
+
+
     while True:
-        data = conn.recv(1024).decode();
-
         chart = soundplot(stream)
         response = colorize(chart)
         response = ",".join(str(int(e)) for e in response)
-        conn.send(response.encode())
-        print("sent")
-        if data == "END":
-            conn.close()
+        for client in lighters:
+            s.send_message(client, response)
 
     #for i in range(int(20*RATE/CHUNK)): #do this for 10 seconds
     #    soundplot(stream)
@@ -242,11 +238,10 @@ if __name__=="__main__":
     p.terminate()
 
 
-#data = np.fromstring(stream.read(CHUNK),dtype=np.int16)
-#pylab.plot(data)
-#pylab.title(i)
-#pylab.grid()
-#pylab.axis([0,len(data),-2**16/2,2**16/2])
-#pylab.savefig("03.png",dpi=50)
-#pylab.close('all')
-#print("took %.02f ms"%((time.time()-t1)*1000))
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((host, port))
+
+print(host , port)
+s.listen(1)
+conn, addr = s.accept()
+print('Connected by', addr)
