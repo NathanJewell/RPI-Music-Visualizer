@@ -23,7 +23,7 @@ def list_devices():
 RATE = 44100
 CHUNK = int(RATE/20) # RATE / number of updates per second
 
-BARS = 46
+BARS = 200
 BAR_HEIGHT = 255
 LINE_WIDTH = 5
 line_ratio_max = 0
@@ -94,7 +94,6 @@ def soundplot(stream):
     return final;
 
 def colorize(data):
-    print(data)
     def sigmoid(v): #v is between 0 and 1
         return 1/(1+pow(2.71, -1*v));
     data = [abs(v/255) for v in data]    #normalize

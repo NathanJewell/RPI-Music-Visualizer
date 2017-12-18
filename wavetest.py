@@ -23,7 +23,7 @@ def list_devices():
 RATE = 44100
 CHUNK = int(RATE/20) # RATE / number of updates per second
 
-BARS = 254
+BARS = 100
 BAR_HEIGHT = 255
 LINE_WIDTH = 5
 line_ratio_max = 0
@@ -124,7 +124,7 @@ def soundplot(stream):
     maximum_item = 0
     max_array = []
 
-
+    print(len(data))
     maxi = 0;
     for i in range(len(data)):
         d = data[i]
@@ -192,20 +192,20 @@ def colorize(d):
     lenratio = 255/len(data);
     colorratio = lenratio/len(data)
     freqratio = (np.clip(frequency, 50, 1000)-50)/950 #clamp and normalize
-    for i in range(len(data)): #bass is bluer, high is redder
+    for i in range(0, len(data)): #bass is bluer, high is redder
 
         intensity = pow(data[i], 1)
         r = sigmoid(255*intensity)*intensity#freqratio*255
         g = 0#colorratio*255
         b = invsigmoid(255*intensity)*intensity
-        if(i==maxi):
-            g = 255
-            b=0
-            r=0
+        #if(i==maxi):
+
+
         colors.append(r)
         colors.append(g)
         colors.append(b)
-
+    for x in range(144*3):
+        colors.append(128)
 
     return colors
 

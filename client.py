@@ -69,7 +69,13 @@ def main():
         data = "led"
         s.send(data.encode())
         data = s.recv(1024).decode().split(",")
-        data = [int(e) for e in data]
+        for i in range(len(data)):
+            try:
+                data[i] = int(data[i])
+            except exception:
+                data[i] = 0
+
+        #data = [int(e) for e in data]
         doLeds(strip, data)
         if data == "END":
             s.close()
