@@ -5,10 +5,8 @@ import time
 import colorsys
 
 import os
-import logging
 #pip install git+https://github.com/Pithikos/python-websocket-server
 from websocket_server import WebsocketServer
-import thread
 
 #web configs
 HOST = '192.168.0.26'        # Symbolic name meaning all available interfaces
@@ -204,10 +202,10 @@ if __name__=="__main__":
 
     lighters = []
     def clientJoin(client, server):
-        pass
+        print("Client Joined")
 
     def clientLeave(client, server):
-        pass
+        print("Client Left")
 
     def message(client, server, message):
         if message == "ping":
@@ -216,7 +214,7 @@ if __name__=="__main__":
             lighters.append(client)
             server.send_message(client, "sending LEDS")
 
-    s = WebsocketServer(PORT, host=HOST, loglevel=loggin.INFO)
+    s = WebsocketServer(PORT, host=HOST)
     s.set_fn_new_client(clientJoin)
     s.set_fn_client_left(clientLeave)
     s.set_fn_message_received(message)
@@ -236,12 +234,3 @@ if __name__=="__main__":
     stream.stop_stream()
     stream.close()
     p.terminate()
-
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((host, port))
-
-print(host , port)
-s.listen(1)
-conn, addr = s.accept()
-print('Connected by', addr)

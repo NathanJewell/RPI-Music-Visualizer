@@ -61,7 +61,7 @@ def main():
 	# Intialize the library (must be called once before other functions).
     strip.begin()
 
-    HOST = '192.168.0.26'
+    HOST = 'ws://192.168.0.26/:12345'
     PORT = 12345                   # The same port as used by the server
 
     def message(ws, message):
@@ -78,10 +78,10 @@ def main():
 
     def opener(ws):
         ws.send("sendLEDS") #tell webserver to send led info
-
-    ws = websocket.WebSocketApp(HOST, message, error, close)
+    websocket.enableTrace(True)
+    ws = websocket.WebSocket(HOST, on_message=message, on_error = error, on_close=close)
     ws.on_open = opener
-    ws.run_forever()
+    ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE, "check_hostname": False})
 
 
 
