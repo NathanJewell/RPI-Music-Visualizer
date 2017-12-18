@@ -68,11 +68,9 @@ def main():
     while(connected):
         data = "led"
         s.send(data.encode())
-        data = s.recv(1024).decode().split(",")
+        data = s.recv(1024).decode().strip(" "),split(",").
         data = [int(e) for e in data]
         doLeds(strip, data)
-        print(data);
-        print('Received', repr(data))
         if data == "END":
             s.close()
 
