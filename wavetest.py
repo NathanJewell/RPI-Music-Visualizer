@@ -3,6 +3,7 @@ import numpy as np
 import pylab
 import time
 import colorsys
+import socket
 
 import os
 #pip install git+https://github.com/Pithikos/python-websocket-server
@@ -12,6 +13,7 @@ from websocket_server import WebsocketServer
 HOST = '192.168.0.26'        # Symbolic name meaning all available interfaces
 PORT = 12345     # Arbitrary non-privileged port
 
+s = socket.socket()
 
 #audio processing configs
 RATE = 44100
