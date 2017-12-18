@@ -23,7 +23,7 @@ def list_devices():
 RATE = 44100
 CHUNK = int(RATE/20) # RATE / number of updates per second
 
-BARS = 100
+BARS = 254
 BAR_HEIGHT = 255
 LINE_WIDTH = 5
 line_ratio_max = 0
@@ -204,8 +204,6 @@ def colorize(d):
         colors.append(r)
         colors.append(g)
         colors.append(b)
-    for x in range(144*3):
-        colors.append(128)
 
     return colors
 

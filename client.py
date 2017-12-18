@@ -71,8 +71,8 @@ def main():
         data = s.recv(1024).decode().split(",")
         for i in range(len(data)):
             try:
-                data[i] = int(data[i])
-            except exception:
+                data[i] = min(int(data[i], 255)
+            except ValueError:
                 data[i] = 0
 
         #data = [int(e) for e in data]
