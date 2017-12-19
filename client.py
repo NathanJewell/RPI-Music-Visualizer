@@ -1,5 +1,6 @@
 import websocket
 import thread
+import ssl
 
 import time
 from neopixel import *
@@ -31,8 +32,8 @@ def main():
     HOST = 'ws://192.168.0.26:12345'
     PORT = 12345                   # The same port as used by the server
 
-    newData = []
-    ledData = []
+    newData = ""
+    ledData = ""
     def message(ws, message):
         #all messages larger than 20 characters will be interpreted as led data
         if(len(message) > 20):
@@ -62,6 +63,7 @@ def main():
             ws = websocket.WebSocketApp(HOST, on_message=message, on_error = error, on_close=close)
             ws.on_open = opener
             ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE, "check_hostname": False})
+            time.wait(3)
         except KeyboardInterrupt:
             exit()
 
