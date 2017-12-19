@@ -193,13 +193,14 @@ def colorize(d):
 
 if __name__=="__main__":
 
-
-
-    data = [] #variable to store audio led data
-
+    list_devices();
+    p=pyaudio.PyAudio()
+    stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
+                  frames_per_buffer=CHUNK)
 
     #websocketserver function
     ledColorData = ""
+    leds = []
     def clientJoin(client, server):
         print("Client Joined")
 

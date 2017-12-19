@@ -55,6 +55,7 @@ def main():
 
     def opener(ws):
         ws.send("sendLEDS") #tell webserver to send led info
+        ws.send("data")
         #thread.start_new_thread(setLeds, (ledDataQueue,))
 
     def connect():
