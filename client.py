@@ -4,7 +4,7 @@ import ssl
 
 import time
 from neopixel import *
-from Queue import Queue
+from Queue import LifoQueue
 
 
 # LED strip configuration:
@@ -33,15 +33,13 @@ def main():
     HOST = 'ws://192.168.0.26:12345'
     PORT = 12345                   # The same port as used by the server
 
-    ledDataQueue = Queue(2)
+    ledDataQueue = LifoQueue(2)
     def message(ws, message):
         #all messages larger than 20 characters will be interpreted as led data
         if(len(message) > 20):
-            if(ledDataQueue.qsize() > 0):
-                ledDataQueue.get_nowait()
-
+            if ledDataQueue.full():
+                ledDataQueue.get()
             ledDataQueue.put(message)
-            print(message)
         else:
             print(message)
 
