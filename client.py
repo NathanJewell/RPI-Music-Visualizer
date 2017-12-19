@@ -46,7 +46,6 @@ def main():
 
     def close(ws):
         print("Connection Close")
-        connect() #try and reconnect
 
     def opener(ws):
         def setLeds(*args):
@@ -63,7 +62,7 @@ def main():
             ws = websocket.WebSocketApp(HOST, on_message=message, on_error = error, on_close=close)
             ws.on_open = opener
             ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE, "check_hostname": False})
-            time.wait(3)
+            time.sleep(3)
         except KeyboardInterrupt:
             exit()
 
