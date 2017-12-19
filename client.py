@@ -57,10 +57,13 @@ def main():
         ws.send("sendLEDS") #tell webserver to send led info
 
     def connect():
-        websocket.enableTrace(True)
-        ws = websocket.WebSocketApp(HOST, on_message=message, on_error = error, on_close=close)
-        ws.on_open = opener
-        ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE, "check_hostname": False})
+        try:
+            websocket.enableTrace(True)
+            ws = websocket.WebSocketApp(HOST, on_message=message, on_error = error, on_close=close)
+            ws.on_open = opener
+            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE, "check_hostname": False})
+        except KeyboardInterrupt:
+            exit()
 
     connect()
 
