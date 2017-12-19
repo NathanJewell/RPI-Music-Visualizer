@@ -1,52 +1,287 @@
-import asyncio
-import websockets
+import pyaudio
+import numpy as np
+import pylab
+import time
+import colorsys
+import socket
 
-host = '192.168.0.26'        # Symbolic name meaning all available interfaces
-port = 12345     # Arbitrary non-privileged port
+import os
+#pip install git+https://github.com/Pithikos/python-websocket-server
+from websocket_server import WebsocketServer
+import threading
 
-@asyncio.coroutine
-def message():
+#web configs
+HOST = '192.168.0.26'        # Symbolic name meaning all available interfaces
+PORT = 12345     # Arbitrary non-privileged port
 
-@asyncio.coroutine
-def connecter(websocket, path):
-    global connected
-    connected.append(websocket)
+s = socket.socket()
 
-    try:
-        yield from 
+#audio processing configs
+RATE = 44100
+CHUNK = int(RATE/20) # RATE / number of updates per second
 
-@asyncio.coroutine
-def handler(websocket, path):
+BARS = 240
+BAR_HEIGHT = 255
+LINE_WIDTH = 5
+line_ratio_max = 0
+line_ratio_avg = 0
+line_ratio = 0
+line_ratios = []
 
-def start():
-    s = websockets.serve(message, host, port)
-    asyncio.get_event_loop().run_until_complete(s)
-    asyncio.get_event_loop().run_forever()
+LOW = 200
+MID = 1500
+HIGH = 2200
 
-if __name__ == "__main___":
-    start()
+LOWP = int(LOW/HIGH * BARS)
+MIDP = int(MID/HIGH * BARS)
+HIGHP = BARS
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((host, port))
+def list_devices():
+    # List all audio input devices
+    p = pyaudio.PyAudio()
+    i = 0
+    n = p.get_device_count()
+    while i < n:
+        dev = p.get_device_info_by_index(i)
+        if dev['maxInputChannels'] > 0:
+            print(str(i)+'. '+dev['name'])
+        i += 1
 
-print(host , port)
-s.listen(1)
-conn, addr = s.accept()
-print('Connected by', addr)
-while True:
-    try:
-        data = conn.recv(1024).decode();
+def getFreq(data): #https://stackoverflow.com/questions/2648151/python-frequency-detection
+    # Take the fft and square each value
+    fftData=abs(np.fft.rfft(data))**2
+    # find the maximum
+    which = fftData[1:].argmax() + 1
+    # use quadratic interpolation around the max
+    if which != len(fftData)-1:
+        y0,y1,y2 = np.log(fftData[which-1:which+2:])
+        x1 = (y2 - y0) * .5 / (2 * y1 - y2 - y0)
+        # find the frequency and output it
+        thefreq = (which+x1)*RATE/CHUNK
+    else:
+        thefreq = which*RATE/CHUNK
 
-        if not data: break
+    return thefreq
 
-        print("Client Says: "+ data)
-        data = str(data);
-        data =
-        conn.send(data.encode())
 
-        if data == "END":
-            conn.close();d
 
-    except socket.error:
-        print("Error Occured.")
-        break
+def soundplot(stream):
+    t1=time.time()
+    data = np.fromstring(stream.read(CHUNK), np.int16)
+    fs = RATE
+
+    length = len(data)
+    RATIO = length/BARS
+    highest_line = 0
+    global line_ratio, line_ratios, line_ratio_max, line_ratio_avg
+
+    count = 0
+    maximum_item = 0
+    max_array = []
+
+    maxi = 0;
+    for i in range(len(data)):
+        d = data[i]
+
+        if count < RATIO:
+            count = count + 1
+
+            if abs(d) > maximum_item:
+                maximum_item = abs(d)
+        else:
+            max_array.append(maximum_item)
+
+            if maximum_item > highest_line:
+                highest_line = maximum_item
+                maxi = i
+
+            maximum_item = 0
+            count = 1
+
+    current_line_ratio = highest_line/BAR_HEIGHT;
+    line_ratios.append(current_line_ratio)
+    if(len(line_ratios) > 30):
+        line_ratios.pop(0)
+
+
+    if (current_line_ratio > line_ratio_max):
+        line_ratio_max = highest_line/BAR_HEIGHT
+
+    line_ratio_avg = sum(line_ratios)/len(line_ratios)
+    line_ratio = max((line_ratio_max+line_ratio_avg)/2, current_line_ratio)
+    #im = Image.new('RGBA', (BARS * LINE_WIDTH, BAR_HEIGHT), (255, 255, 255, 1))
+    #draw = ImageDraw.Draw(im)
+
+    current_x = 1
+    final = [];
+    for item in max_array:
+        item_height = item/line_ratio
+        final.append(item_height)
+
+    lowf = data[:LOW]
+    midf = data[LOW:MID]
+    highf = data[MID:HIGH]
+
+    freqs = (getFreq(lowf)/LOW, getFreq(midf)/(MID-LOW), getFreq(highf)/(HIGH-MID)) #normalized relative frequencies
+
+    low = final[:LOWP]
+    mid = final[LOWP:MIDP]
+    high = final[MIDP:HIGHP]
+
+    amps = (sum(low)/len(low), sum(mid)/len(mid), sum(high)/len(high))
+    return (final, freqs, amps, getFreq(data));
+
+fMAX = 3000
+fMIN = 50
+def colorize(d):
+    global fmax, fmin
+    data = d[0]
+    freqs = d[1]
+    #print("f: " + str(frequency))
+    amps = d[2]
+    frequency = d[3]
+
+    #print("m: " + str(maxi))
+    freqcolors = ((100, 100, 100), (100, 0, 0), (100, 0, 0)) #low, mid, high
+    basecolor =  (128, 0, 0)
+    smoothing = 0
+
+    def sigmoid(v, shift=0, steepness=7, zero=False): #v is between 0 and 1
+        zeroshift = sigmoid(0, steepness=steepness) if zero else 0
+        s2 = sigmoid(0, steepness, shift) if zero else 0
+        return (1+2*zeroshift)/(1+pow(2.718, -steepness*(v-.5-shift))) - zeroshift - s2
+    def invsigmoid(v, shift=0, steepness=7, one=False):
+        oneshift = invsigmoid(0, shift, steepness) if zero else 0
+
+        return (-1-2*oneshift)/(1+pow(2.718, -steepness*(v-.5-shift)))+1+oneshift
+
+    def hsv(s, start=0, inv=False):
+        h = start-s if inv else start+s
+        if h < 0:
+            h = 1 + h
+        elif h > 1:
+            h = 0 + (h-1)
+        rgb = colorsys.hsv_to_rgb(h, 1, 1)
+        return (rgb[0] * 255,
+        rgb[1] * 255,
+        rgb[2] * 255)
+
+    data = [v/255 for v in data]    #normalize
+    colors = []
+
+    freqratio = (np.clip(int(frequency), fMIN, fMAX)-fMIN)/(fMAX-fMIN) #clamp and normalize
+
+    #basecolor = hsv(freqratio, .7, True)
+    avgIntensity = sum(data)/len(data)
+    for i in range(0, len(data)): #bass is bluer, high is redder
+
+        intensity = pow(avgIntensity, .5) * pow(data[i], .5)
+        r = basecolor[0]*intensity#freqratio*255
+        g = basecolor[1]*intensity#colorratio*255
+        b = basecolor[2]*intensity
+
+        colors.append(r)
+        colors.append(g)
+        colors.append(b)
+
+
+    def depression(p, s, c, m=1): #position and size and color
+        p = int(p)
+        s = int(s)
+        for i in range(p-s, p+s):
+            if(i > 0 and i*3 < len(colors)):
+                #r = abs(p-i)/s
+                d=1 #decay
+                colors[i*3] +=  c[0]*d*m
+                colors[i*3 + 1] += c[1]*d*m
+                colors[i*3 + 2] += c[2]*d*m
+    #depression(BARS/3, int(avgIntensity)*(BARS//2), (0, 0, 100), (sum(data)/len(data)));
+    depression((BARS//3), freqs[0]*15, freqcolors[0], amps[0]/255) #low one fourth
+    #depression((BARS*freqs[1])/3 + BARS/3, 10, freqcolors[1], amps[1]/255) #mid two fourths
+    #depression((BARS*freqs[2])/3 + (2*BARS)/3, 5, freqcolors[2], amps[2]/255) #high one fourth
+
+    return colors
+
+#manipulation functions
+#def resetAnim():
+#    pass
+
+
+#changeDict = {
+#    "resetAnimation" : resetAnim,
+#    "useDefaults" : useDefaults,
+#    "maximumFrequency" : setMaxFreq,
+#    "minimumFrequency" : setMinFreq,
+#    "tasteRainbow" : useBaseColorRainbow,
+#    "baseColor" : setBaseColor,
+#
+#}
+def setAnimation(message):
+    def makeChange(dict):
+        pass
+    data = message.split("&")
+    things = dict()
+    for i in data:
+        c = i.split(":")
+        things[c[0]] = c[1]
+    for key, val in things.items():
+        makeChange(key, val)
+
+if __name__=="__main__":
+
+    list_devices();
+    p=pyaudio.PyAudio()
+    stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
+                  frames_per_buffer=CHUNK)
+
+    #websocketserver function
+    ledColorData = ""
+    leds = []
+    def clientJoin(client, server):
+        print("Client Joined")
+
+    def clientLeave(client, server):
+        print("Client Left")
+
+    def message(client, server, message):
+        if message == "ping":
+            server.send_message(client, "pong")
+        elif message == "sendLEDS":
+            server.send_message(client, "sending LEDS")
+            print("New LED Client")
+            leds.append(client)
+        elif message == "data":
+            s.send_message(client, ledColorData)
+        elif message.split("!")[0] == "setanimation":
+            setAnimation(message.split("!")[1])
+
+    s = WebsocketServer(PORT, host=HOST)
+    s.set_fn_new_client(clientJoin)
+    s.set_fn_client_left(clientLeave)
+    s.set_fn_message_received(message)
+
+    def processAudio():
+        global ledColorData
+        try:
+            while(True):
+                chart = soundplot(stream)
+                response = colorize(chart)
+                ledColorData = ",".join(str(int(e)) for e in response)
+
+        except KeyboardInterrupt:
+            print("Stopping Audio Logging")
+
+
+    audioThread = threading.Thread(target=processAudio)
+    audioThread.start()
+    s.run_forever()
+
+
+
+
+    #for i in range(int(20*RATE/CHUNK)): #do this for 10 seconds
+    #    soundplot(stream)
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
