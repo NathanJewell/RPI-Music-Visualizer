@@ -198,7 +198,6 @@ if __name__=="__main__":
     stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
                   frames_per_buffer=CHUNK)
 
-    data = [] #variable to store audio led data
 
 
     #websocketserver function
@@ -227,12 +226,11 @@ if __name__=="__main__":
             chart = soundplot(stream)
             response = colorize(chart)
             response = ",".join(str(int(e)) for e in response)
-            data = response
 
             for c in s.clients:
                 if(c in leds):
-                    s.send_message(c, data)
-                    print(data)
+                    s.send_message(c, response)
+                    print(response)
 
 
     audioThread = threading.Thread(target=processAudio)

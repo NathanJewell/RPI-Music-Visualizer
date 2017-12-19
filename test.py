@@ -9,11 +9,12 @@ def main():
     PORT = 12345                   # The same port as used by the server
 
     newData = ""
-    ledData = ""
     def message(ws, message):
         #all messages larger than 20 characters will be interpreted as led data
+        global newData
         if(len(message) > 20):
             newData = message
+            print(len(newData))
         else:
             print(message)
 
@@ -25,12 +26,14 @@ def main():
 
     def opener(ws):
         def setLeds(*args):
+            global newData
             while True:
+                print(len(newData))
                 if(len(newData)):
                     ledData = [int(e) for e in newData.split(",")]
                     doLeds(ledData)
         ws.send("sendLEDS") #tell webserver to send led info
-        _thread.start_new_thread(setLeds, ())
+        thread.start_new_thread(setLeds, ())
 
     def connect():
         try:
