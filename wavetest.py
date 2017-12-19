@@ -223,7 +223,6 @@ if __name__=="__main__":
     s.set_fn_message_received(message)
 
     def processAudio():
-
         while(True):
             chart = soundplot(stream)
             response = colorize(chart)
