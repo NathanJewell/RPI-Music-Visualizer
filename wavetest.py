@@ -8,6 +8,7 @@ import socket
 import os
 #pip install git+https://github.com/Pithikos/python-websocket-server
 from websocket_server import WebsocketServer
+import threading
 
 #web configs
 HOST = '192.168.0.26'        # Symbolic name meaning all available interfaces
@@ -130,7 +131,6 @@ def soundplot(stream):
     amps = (sum(low)/len(low), sum(mid)/len(mid), sum(high)/len(high))
     return (final, freqs, amps, getFreq(data));
 
-last = False;
 
 def colorize(d):
     global last
@@ -141,8 +141,8 @@ def colorize(d):
     frequency = d[3]
 
     #print("m: " + str(maxi))
-    freqcolors = ((50, 0, 0), (100, 0, 0), (100, 0, 0)) #low, mid, high
-    basecolor =  (0, 0, 0)
+    freqcolors = ((50, 0, 70), (100, 0, 0), (100, 0, 0)) #low, mid, high
+    basecolor =  (128, 0, 0)
     smoothing = 0
 
     def sigmoid(v): #v is between 0 and 1
@@ -160,15 +160,11 @@ def colorize(d):
     colors = []
     freqratio = (np.clip(int(frequency), 20, 2000)-20)/1980 #clamp and normalize
 
-    if(last):
-        basecolor = (50, 255, 255)
-        time.sleep(.04)
-    last = not last
-
-    #basecolor = hsv(freqratio)
+    basecolor = hsv(freqratio)
+    avgIntensity = sum(data)/len(data)
     for i in range(0, len(data)): #bass is bluer, high is redder
 
-        intensity = 1#(pow(data[i], 1) + .5*smoothing)/(smoothing+1)
+        intensity = avgIntensity#(pow(data[i], 1) + .5*smoothing)/(smoothing+1)
         r = basecolor[0]*intensity#freqratio*255
         g = basecolor[1]*intensity#colorratio*255
         b = basecolor[2]*intensity
@@ -188,7 +184,7 @@ def colorize(d):
                 colors[i*3] +=  c[0]*d*m
                 colors[i*3 + 1] += c[1]*d*m
                 colors[i*3 + 2] += c[2]*d*m
-    #depression(BARS/3, int((sum(data)/len(data))*(BARS//2)), (0, 0, 100), (sum(data)/len(data)));
+    #depression(BARS/3, int(avgIntensity)*(BARS//2), (0, 0, 100), (sum(data)/len(data)));
     #depression((BARS*freqs[0]), 20, freqcolors[0], amps[0]/255) #low one fourth
     #depression((BARS*freqs[1])/3 + BARS/3, 10, freqcolors[1], amps[1]/255) #mid two fourths
     #depression((BARS*freqs[2])/3 + (2*BARS)/3, 5, freqcolors[2], amps[2]/255) #high one fourth
@@ -202,7 +198,11 @@ if __name__=="__main__":
     stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
                   frames_per_buffer=CHUNK)
 
-    lighters = []
+    data = [] #variable to store audio led data
+
+
+    #websocketserver function
+    leds = [];
     def clientJoin(client, server):
         print("Client Joined")
 
@@ -213,22 +213,35 @@ if __name__=="__main__":
         if message == "ping":
             server.send_message(client, "pong")
         elif message == "sendLEDS":
-            lighters.append(client)
             server.send_message(client, "sending LEDS")
+            print("New LED Client")
+            leds.append(client)
 
     s = WebsocketServer(PORT, host=HOST)
     s.set_fn_new_client(clientJoin)
     s.set_fn_client_left(clientLeave)
     s.set_fn_message_received(message)
+
+    def processAudio():
+
+        while(True):
+            chart = soundplot(stream)
+            response = colorize(chart)
+            response = ",".join(str(int(e)) for e in response)
+            data = response
+
+            for c in s.clients:
+                if(c in leds):
+                    s.send_message(c, data)
+                    print(data)
+
+
+    audioThread = threading.Thread(target=processAudio)
+    audioThread.start()
     s.run_forever()
 
 
-    while True:
-        chart = soundplot(stream)
-        response = colorize(chart)
-        response = ",".join(str(int(e)) for e in response)
-        for client in lighters:
-            s.send_message(client, response)
+
 
     #for i in range(int(20*RATE/CHUNK)): #do this for 10 seconds
     #    soundplot(stream)
