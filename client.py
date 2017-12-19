@@ -50,11 +50,11 @@ def main():
     def opener(ws):
         def setLeds(*args):
             while True:
-                ledData = newData
-                doLeds([int(e) for e in ledData.split(",")])
-        print("thread terminating...")
-        thread.start_new_thread(setLeds, ())
+                if(len(newData)):
+                    ledData = [int(e) for e in newData.split(",")]
+                    doLeds(ledData)
         ws.send("sendLEDS") #tell webserver to send led info
+        thread.start_new_thread(setLeds, ())
 
     def connect():
         try:
