@@ -4,6 +4,7 @@ import ssl
 
 import time
 from neopixel import *
+from Queue import Queue
 
 
 # LED strip configuration:
@@ -40,6 +41,7 @@ def main():
                 ledDataQueue.get_nowait()
 
             ledDataQueue.put(message)
+            print(message)
         else:
             print(message)
 
@@ -55,9 +57,9 @@ def main():
                 data = queue.get()
                 if(len(data)):
                     ledData = [int(e) for e in data.split(",")]
-                    doLeds(ledData)
+                    doLeds(strip, ledData)
         ws.send("sendLEDS") #tell webserver to send led info
-        _thread.start_new_thread(setLeds, (ledDataQueue,))
+        thread.start_new_thread(setLeds, (ledDataQueue,))
 
     def connect():
         try:
