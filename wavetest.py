@@ -160,7 +160,7 @@ def colorize(d):
     colors = []
     freqratio = (np.clip(int(frequency), 20, 2000)-20)/1980 #clamp and normalize
 
-    basecolor = hsv(freqratio)
+    #basecolor = hsv(freqratio)
     avgIntensity = sum(data)/len(data)
     for i in range(0, len(data)): #bass is bluer, high is redder
 
@@ -184,8 +184,8 @@ def colorize(d):
                 colors[i*3] +=  c[0]*d*m
                 colors[i*3 + 1] += c[1]*d*m
                 colors[i*3 + 2] += c[2]*d*m
-    #depression(BARS/3, int(avgIntensity)*(BARS//2), (0, 0, 100), (sum(data)/len(data)));
-    #depression((BARS*freqs[0]), 20, freqcolors[0], amps[0]/255) #low one fourth
+    depression(BARS/3, int(avgIntensity)*(BARS//2), (0, 0, 100), (sum(data)/len(data)));
+    depression((BARS*freqs[0]), 20, freqcolors[0], amps[0]/255) #low one fourth
     #depression((BARS*freqs[1])/3 + BARS/3, 10, freqcolors[1], amps[1]/255) #mid two fourths
     #depression((BARS*freqs[2])/3 + (2*BARS)/3, 5, freqcolors[2], amps[2]/255) #high one fourth
 
@@ -193,15 +193,13 @@ def colorize(d):
 
 if __name__=="__main__":
 
-    list_devices();
-    p=pyaudio.PyAudio()
-    stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
-                  frames_per_buffer=CHUNK)
 
+
+    data = [] #variable to store audio led data
 
 
     #websocketserver function
-    leds = [];
+    ledColorData = ""
     def clientJoin(client, server):
         print("Client Joined")
 
@@ -215,6 +213,8 @@ if __name__=="__main__":
             server.send_message(client, "sending LEDS")
             print("New LED Client")
             leds.append(client)
+        elif message == "data":
+            s.send_message(clients, ledColorData)
 
     s = WebsocketServer(PORT, host=HOST)
     s.set_fn_new_client(clientJoin)
@@ -222,15 +222,15 @@ if __name__=="__main__":
     s.set_fn_message_received(message)
 
     def processAudio():
-        while(True):
-            chart = soundplot(stream)
-            response = colorize(chart)
-            response = ",".join(str(int(e)) for e in response)
+        try:
+            while(True):
+                chart = soundplot(stream)
+                response = colorize(chart)
+                ledColorData = ",".join(str(int(e)) for e in response)
 
-            for c in s.clients:
-                if(c in leds):
-                    s.send_message(c, response)
-                    print(response)
+
+        except KeyboardInterrupt:
+            print("Stopping Audio Logging")
 
 
     audioThread = threading.Thread(target=processAudio)

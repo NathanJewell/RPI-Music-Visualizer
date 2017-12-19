@@ -33,13 +33,17 @@ def main():
     HOST = 'ws://192.168.0.26:12345'
     PORT = 12345                   # The same port as used by the server
 
-    ledDataQueue = LifoQueue(2)
     def message(ws, message):
         #all messages larger than 20 characters will be interpreted as led data
         if(len(message) > 20):
-            if ledDataQueue.full():
-                ledDataQueue.get()
-            ledDataQueue.put(message)
+            def setLeds():
+                ledData = [int(e) for e in data.split(",")]
+                doLeds(strip, ledData)
+                ws.send("data")
+            thread.start_new_thread(setLeds, ())
+            #if ledDataQueue.full():
+            #    ledDataQueue.get()
+            #ledDataQueue.put(message)
         else:
             print(message)
 
@@ -50,14 +54,8 @@ def main():
         print("Connection Close")
 
     def opener(ws):
-        def setLeds(queue):
-            while True:
-                data = queue.get()
-                if(len(data)):
-                    ledData = [int(e) for e in data.split(",")]
-                    doLeds(strip, ledData)
         ws.send("sendLEDS") #tell webserver to send led info
-        thread.start_new_thread(setLeds, (ledDataQueue,))
+        #thread.start_new_thread(setLeds, (ledDataQueue,))
 
     def connect():
         try:
