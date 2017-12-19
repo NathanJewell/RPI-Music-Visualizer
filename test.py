@@ -3,18 +3,20 @@ import websocket
 import time
 import ssl
 import _thread
+from multiprocessing import Queue
 def main():
 
     HOST = 'ws://192.168.0.26:12345'
     PORT = 12345                   # The same port as used by the server
 
-    newData = ""
+    ledDataQueue = Queue(2)
     def message(ws, message):
         #all messages larger than 20 characters will be interpreted as led data
-        global newData
         if(len(message) > 20):
-            newData = message
-            print(len(newData))
+            if(ledDataQueue.qsize() > 0):
+                ledDataQueue.get_nowait()
+
+            ledDataQueue.put(message)
         else:
             print(message)
 
@@ -25,15 +27,15 @@ def main():
         print("Connection Close")
 
     def opener(ws):
-        def setLeds(*args):
-            global newData
+        def setLeds(queue):
             while True:
-                print(len(newData))
-                if(len(newData)):
-                    ledData = [int(e) for e in newData.split(",")]
+                data = queue.get()
+                print(data)
+                if(len(data)):
+                    ledData = [int(e) for e in data.split(",")]
                     doLeds(ledData)
         ws.send("sendLEDS") #tell webserver to send led info
-        thread.start_new_thread(setLeds, ())
+        _thread.start_new_thread(setLeds, (ledDataQueue,))
 
     def connect():
         try:
