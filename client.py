@@ -35,23 +35,12 @@ def main():
     endlast = 0
     def message(ws, message):
         #all messages larger than 20 characters will be interpreted as led data
-        rectime = time.time()*1000000
         if(len(message) > 20):
             def setLeds():
-                global endlast
-                start = time.time() * 1000000
                 ledData = [int(e) for e in message.split(",")]
-                d1 = time.time() * 1000000
                 doLeds(strip, ledData)
-                d2 = time.time() * 1000000
                 ws.send("data")
-                endthis = time.time() * 1000000
-                print("transfer: " + str(rectime-endlast))
-                print("process: " + str(end-start))
-                print("sending: " + str(end-d2))
-                print("putting: " + str(d2-d1))
-                print("manipul: " + str(d1 - start))
-                endlast=endthis
+
 
             thread.start_new_thread(setLeds, ())
 

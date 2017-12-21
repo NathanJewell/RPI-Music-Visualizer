@@ -5,6 +5,7 @@ import time
 import colorsys
 import socket
 import json
+import math
 
 import os
 #pip install git+https://github.com/Pithikos/python-websocket-server
@@ -29,8 +30,8 @@ def list_devices():
         i += 1
 
 def normalizeFreq(freq, low=0, high=1):
-    low = fMAX * low + fMIN
-    high = fMAX * high
+    low = a.fMAX * low + a.fMIN
+    high = a.fMAX * high
     return (np.clip(int(freq), low, high)-low)/(high-low)
 
 def sigmoid(v, shift=0, steepness=7, zero=False): #v is between 0 and 1
@@ -38,7 +39,7 @@ def sigmoid(v, shift=0, steepness=7, zero=False): #v is between 0 and 1
     s2 = sigmoid(0, steepness, shift) if zero else 0
     return (1+2*zeroshift)/(1+pow(2.718, -steepness*(v-.5-shift))) - zeroshift - s2
 def invsigmoid(v, shift=0, steepness=7, one=False):
-    oneshift = invsigmoid(0, shift, steepness) if zero else 0
+    oneshift = invsigmoid(0, shift, steepness) if one else 0
 
     return (-1-2*oneshift)/(1+pow(2.718, -steepness*(v-.5-shift)))+1+oneshift
 
@@ -56,10 +57,11 @@ def hsv(s, start=0, inv=False):
 class StripAnimation:
     #audio processing configs
     RATE = 44100
-    CHUNK = int(RATE/100)-1 # RATE / number of updates per second
+    FPS = 20
+    CHUNK = int(RATE/FPS) # RATE / number of updates per second
 
-    NUMLED = 240
-    MAX_AMP = 255
+    NUMLED = 200
+    MAX_AMP = np.zeros(NUMLED)
     line_ratio_max = 0
     line_ratio_avg = 0
     line_ratio = 5
@@ -69,28 +71,38 @@ class StripAnimation:
     MID = .6
     HIGH = 1
 
+    #COMPUTED--------
+    LOW = int(LOW*NUMLED)
+    MID = int(MID*NUMLED)
+    HIGH = int(HIGH*NUMLED)
+    #----------
+
+
     #maximum and minimum for normalizing frequencies
     fMAX = 3000
-    fMIN = 20
+    fMIN = FPS
 
-    rainbow = False #whether rainbow should be used (freq controls hue)
-    rainbowStartValue = .7 #where rainbow should start in hue
+    frequencyRainbow = False #whether rainbow should be used (freq controls hue)
+    timeBasedRainbow = True #whether color should vary with time
+    useSigmoid = False #whether to invert two colors using sig and invsig
+    timeBasedRainbowTime = 120000 #time to cycle through all colors
+    rainbowStartValue = .52 #where rainbow should start in hue
     rainbowInversion = True #if normalized frequency should be inverted
 
-    frequencySaturation = False #whether saturation should be freq controlled
-    individualLEDAmplitudes = False #whether individual amplitudes should be displayed
+    frequencySaturation = True #whether saturation should be freq controlled
+    individualLEDAmplitudes = True #whether individual amplitudes should be displayed
 
-    defaultBaseColor = (255, 0, 0) #base color to be used
+    defaultBaseColor = (255, 255, 255) #base color to be used
     bassColor = (0, 0, 255)
     midColor = (0, 255, 0)
     highColor = (255, 0, 0)
 
-    useBassDeppression = False
+    useBassDeppression = True
     useMidDeppression = False
     useHighDeppression = False
 
-    def setRainbow(self, value):
-        self.rainbow = bool(value)
+    def setFrequencyRainbow(self, value):
+        self.frequencyRainbow = bool(value)
     def setRainbowStartValue(self, value):
         self.rainbowStartValue = float(value)
     def setRainbowInversion(self, value):
@@ -121,22 +133,22 @@ class StripAnimation:
 
     def __init__(self):
         changeDict = {
-            "rainbow" : a.setRainbow,
-            "rainbowStartValue" : a.setRainbowStartValue,
-            "rainbowInversion" : a.setRainbowInversion,
-            "frequencySaturation" : a.setFrequencySaturation,
-            "individualLEDAmplitudes" : a.setIndividualLEDAmplitudes,
-            "defaultBaseColor" : a.setDefaultBaseColor,
-            "bassColor" : a.setBassColor,
-            "midColor" : a.setMidColor,
-            "highColor" : a.setHighColor,
-            "useBassDeppression" : a.setUseBassDeppression,
-            "useMidDeppression" : a.setUseMidDeppression,
-            "useHighDeppression" : a.setUseHighDeppression,
+            "frequencyRainbow" : self.setFrequencyRainbow,
+            "rainbowStartValue" : self.setRainbowStartValue,
+            "rainbowInversion" : self.setRainbowInversion,
+            "frequencySaturation" : self.setFrequencySaturation,
+            "individualLEDAmplitudes" : self.setIndividualLEDAmplitudes,
+            "defaultBaseColor" : self.setDefaultBaseColor,
+            "bassColor" : self.setBassColor,
+            "midColor" : self.setMidColor,
+            "highColor" : self.setHighColor,
+            "useBassDeppression" : self.setUseBassDeppression,
+            "useMidDeppression" : self.setUseMidDeppression,
+            "useHighDeppression" : self.setUseHighDeppression,
 
         }
         currentDict =  {
-            "rainbow" : self.rainbow,
+            "frequencyRainbow" : self.frequencyRainbow,
             "rainbowStartValue" : self.rainbowStartValue,
             "rainbowInversion" : self.rainbowInversion,
             "frequencySaturation" : self.frequencySaturation,
@@ -155,74 +167,90 @@ class StripAnimation:
 
 a = StripAnimation()
 
-manipulation functions
-def resetAnim():
-    pass
-
-
-
-
-def getFreq(data, low=0, high=1, normalize=True):
+def getFreq(fftData, low=0, high=a.NUMLED, normalize=True):
     #https://stackoverflow.com/questions/2648151/python-frequency-detection
     # Take the fft and square each value
-    global a
-    fftData=abs(np.fft.rfft(data))**2
+
     # find the maximum
-    which = fftData[int(1+len(fftData)*low):int(len(fftData)*high)].argmax() + 1
+    which = fftData[(1+low):high].argmax() + 1
     # use quadratic interpolation around the max
     if which != len(fftData)-1:
         y0,y1,y2 = np.log(fftData[which-1:which+2:])
         x1 = (y2 - y0) * .5 / (2 * y1 - y2 - y0)
         # find the frequency and output it
-        thefreq = (which+x1)*a.RATE/a.CHUNK
+        thefreq = (which+x1+low)*a.RATE/a.CHUNK
     else:
-        thefreq = which*a.RATE/a.CHUNK
-
+        thefreq = (which+low)*a.RATE/a.CHUNK
+    if math.isnan(thefreq):
+        thefreq = 0
     return normalizeFreq(thefreq, low, high) if normalize else thefreq
 
-def soundplot(data):
+def soundplotOLD(data):
     length = len(data)
     RATIO = int(length/a.NUMLED)
     highest_line = 0
-    global line_ratio, line_ratios, line_ratio_max, line_ratio_avg
 
     count = 0
     maximum_item = 0
     max_array = []
 
     maxi = 0;
-    for i in range(NUMLED):
+    for i in range(a.NUMLED):
         d = abs(data[i*RATIO])
 
-        max_array.append(d/line_ratio)
+        max_array.append(d/a.line_ratio)
 
         if d > highest_line:
             highest_line = d
             maxi = i
 
-    current_line_ratio = highest_line/MAX_AMP;
-    line_ratios.append(current_line_ratio)
-    if(len(line_ratios) > 30):
-        line_ratios.pop(0)
+    current_line_ratio = highest_line/a.MAX_AMP;
+    a.line_ratios.append(current_line_ratio)
+    if(len(a.line_ratios) > 30):
+        a.line_ratios.pop(0)
 
 
-    if (current_line_ratio > line_ratio_max):
-        line_ratio_max = highest_line/MAX_AMP
+    if (current_line_ratio > a.line_ratio_max):
+        a.line_ratio_max = highest_line/a.MAX_AMP
 
-    line_ratio_avg = sum(line_ratios)/len(line_ratios)
-    line_ratio = max((line_ratio_max+line_ratio_avg)/2, current_line_ratio)
+    a.line_ratio_avg = sum(a.line_ratios)/len(a.line_ratios)
+    a.line_ratio = max((a.line_ratio_max+a.line_ratio_avg)/2, current_line_ratio)
 
 
-    freqs = (getFreq(data, 0, LOW), getFreq(data, LOW, MID), getFreq(data, MID, HIGH)) #normalized relative frequencies
+    freqs = (getFreq(data, 0, a.LOW), getFreq(data, a.LOW, a.MID), getFreq(data, a.MID, a.HIGH)) #normalized relative frequencies
 
-    low = max_array[:int(NUMLED*LOW)]
-    mid = max_array[int(NUMLED*LOW):int(NUMLED*MID)]
-    high = max_array[int(NUMLED*MID):int(NUMLED*HIGH)]
+    low = max_array[:int(a.NUMLED*a.LOW)]
+    mid = max_array[int(a.NUMLED*a.LOW):int(a.NUMLED*a.MID)]
+    high = max_array[int(a.NUMLED*a.MID):int(a.NUMLED*a.HIGH)]
 
     amps = (sum(low)/len(low), sum(mid)/len(mid), sum(high)/len(high))
     return (max_array, freqs, amps, getFreq(data),);
 
+def soundplot(data):
+    global a
+    fftData=abs(np.fft.rfft(data))**2
 
+
+    frequencies = (
+                getFreq(fftData, 0, a.LOW),
+                getFreq(fftData, a.LOW, a.MID),
+                getFreq(fftData, a.MID, a.HIGH))
+    frequency = getFreq(fftData)
+    amps = (np.average(fftData[:a.LOW]),
+            np.average(fftData[a.LOW:a.MID]),
+            np.average(fftData[a.MID:a.HIGH]))
+    fftData = np.repeat(fftData, 2)
+    fftData = fftData[:a.NUMLED]
+
+    a.MAX_AMP = np.maximum(a.MAX_AMP, fftData)
+    cMax = (a.MAX_AMP + fftData*2)/3
+    #fftData = np.divide(fftData, a.MAX_AMP)
+    fftData /= np.max(fftData)
+    fftData = np.fliplr([fftData])[0]
+
+
+
+    return (fftData, frequencies, amps, frequency);
 
 def colorize(d):
     global a
@@ -232,25 +260,35 @@ def colorize(d):
     amps = d[2]
     frequency = d[3]
 
-    freqcolors = (a.lowColor, a.midColor, a.highColor) #low, mid, high
+    freqcolors = (a.bassColor, a.midColor, a.highColor) #low, mid, high
     basecolor =  a.defaultBaseColor
 
-    data = [v/255 for v in data]    #normalize
     colors = []
 
-    if rainbow:
-        basecolor = hsv(frequency, .7, True)
-    avgIntensity = sum(data)/len(data)
+    if a.timeBasedRainbow:
+        basecolor = hsv((int(time.time()*1000)%a.timeBasedRainbowTime)/a.timeBasedRainbowTime, a.rainbowStartValue, a.rainbowInversion)
+
+    if a.frequencyRainbow:
+        basecolor = hsv(frequency, a.rainbowStartValue, a.rainbowInversion)
+    avgIntensity = np.average(data)
     for i in range(0, len(data)): #bass is bluer, high is redder
-        intensity = pow(avgIntensity, 1)# * pow(data[i], .5)
-        r = basecolor[0]*intensity#freqratio*255
-        g = basecolor[1]*intensity#colorratio*255
-        b = basecolor[2]*intensity
+        intensity = pow(avgIntensity, 1)
+        basecolor = hsv(i/len(data), a.rainbowStartValue, a.rainbowInversion)
+        if a.individualLEDAmplitudes:
+            intensity = pow(data[i], 1)
+        if(a.useSigmoid):
+            r = invsigmoid(avgIntensity)*basecolor[0]*intensity#freqratio*255
+            g = sigmoid(avgIntensity)*basecolor[1]*intensity#colorratio*255
+            b = basecolor[2]*intensity
+        else:
+            r = basecolor[0]*intensity#freqratio*255
+            g = basecolor[1]*intensity#colorratio*255
+            b = basecolor[2]*intensity
+
 
         colors.append(r)
         colors.append(g)
         colors.append(b)
-
 
     def depression(p, s, c, m=1): #position and size and color
         p = int(p)
@@ -264,11 +302,11 @@ def colorize(d):
                 colors[i*3 + 2] += c[2]*d*m
     #depression(BARS/3, int(avgIntensity)*(BARS//2), (0, 0, 100), (sum(data)/len(data)));
     if a.useBassDeppression:
-        depression((BARS//6), (1-freqs[0])*15, freqcolors[0], amps[0]/255)
+        depression((a.NUMLED//2), (amps[0]*25), freqcolors[0])
     if a.useMidDeppression:
-        depression(BARS//3,  freqs[1]*10, freqcolors[1], amps[1]/255)
+        depression(a.NUMLED//3,  freqs[1]*10, freqcolors[1], amps[1]/255)
     if a.useHighDeppression:
-        depression(BARS//1.5, (freqs[2])*10, freqcolors[2], amps[2]/255)
+        depression(a.NUMLED//1.5, (freqs[2])*10, freqcolors[2], amps[2]/255)
 
     return colors
 
@@ -289,8 +327,8 @@ if __name__=="__main__":
 
     list_devices();
     p=pyaudio.PyAudio()
-    stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
-                  frames_per_buffer=CHUNK)
+    stream=p.open(format=pyaudio.paInt16,channels=1,rate=a.RATE,input=True,
+                  frames_per_buffer=a.CHUNK)
 
     #websocketserver function
     ledColorData = ""
@@ -304,6 +342,7 @@ if __name__=="__main__":
         print("Client Left")
 
     def message(client, server, message):
+        print(message)
         if message == "ping":
             server.send_message(client, "pong")
         elif message == "sendLEDS":
@@ -325,20 +364,15 @@ if __name__=="__main__":
 
     def processAudio():
         global ledColorData
-        try:
-            while(True):
-                chart = soundplot(streamData)
-                response = colorize(chart)
-                ledColorData = ",".join(str(int(e)) for e in response)
-
-
-        except KeyboardInterrupt:
-            print("Stopping Audio Logging")
+        while(True):
+            chart = soundplot(streamData)
+            response = colorize(chart)
+            ledColorData = ",".join(str(int(e)) for e in response)
 
     def streamAudio():
         global streamData
         while True:
-            streamData = np.fromstring(stream.read(CHUNK), np.int16)
+            streamData = np.fromstring(stream.read(a.CHUNK), np.int16)
 
     def webclientUpdate():
         global a
@@ -361,7 +395,10 @@ if __name__=="__main__":
     audioThread = threading.Thread(target=processAudio)
     audioThread.start()
     print("Started: Audio Process Thread")
+    print("Starting: Websocket Server")
+
     time.sleep(.5)
+    print("Starting: Websocket Server")
 
     s.run_forever()
     print("Started: Websocket Server")
