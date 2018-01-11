@@ -13,7 +13,7 @@ import threading
 from scipy.ndimage import filters
 
 #web configs
-HOST = '192.168.0.26'        # Symbolic name meaning all available interfaces
+HOST = "192.168.0.100"        # Symbolic name meaning all available interfaces
 PORT = 12345     # Arbitrary non-privileged port
 
 

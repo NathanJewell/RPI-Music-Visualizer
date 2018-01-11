@@ -30,7 +30,7 @@ def main():
 	# Intialize the library (must be called once before other functions).
     strip.begin()
 
-    HOST = 'ws://192.168.0.26:12345'
+    HOST = 'ws://192.168.0.100:12345'
     PORT = 12345                   # The same port as used by the server
     endlast = 0
     def message(ws, message):
