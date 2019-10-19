@@ -13,8 +13,8 @@ import threading
 from scipy.ndimage import filters
 
 #web configs
-HOST = "192.168.0.102"        # Symbolic name meaning all available interfaces
-PORT = 8080    # Arbitrary non-privileged port
+HOST = "192.168.0.113"        # Symbolic name meaning all available interfaces
+PORT = 12345     # Arbitrary non-privileged port
 
 
 def list_devices():
@@ -59,9 +59,9 @@ class StripAnimation:
     FPS = 20
     CHUNK = int(RATE/FPS) # RATE / number of updates per second
 
-    NUMLED = 200
+    NUMLED = 600
     MAX_AMP = np.zeros(NUMLED)
-    VOLUME_ARR = np.zeros(800)
+    VOLUME_ARR = np.zeros(600)
 
     line_ratio_max = 0
     VOLUME_MAX = 0
